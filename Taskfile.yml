@@ -1,0 +1,63 @@
+version: '3'
+
+dotenv:
+  - .env
+tasks:
+  migrate:
+    desc: Up migrations from ./migrations
+    cmds:
+    - 'goose -dir migrations postgres "postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:5432/$POSTGRES_DB" up'
+    - "go run cmd/data_migrator/main.go"
+
+  init:
+    desc: "Сгенерировать CLUSTER_ID и сохранить в .env (пропускается, если .env уже есть)"
+    status:
+      - test -f .env
+    cmds:
+      - |
+        CLUSTER_ID=$(docker run --rm apache/kafka:4.2.0 \
+          /opt/kafka/bin/kafka-storage.sh random-uuid 2>/dev/null | tr -d '\r\n')
+        echo "CLUSTER_ID=$CLUSTER_ID" > .env
+        echo "✓ CLUSTER_ID=$CLUSTER_ID  →  .env"
+      - chmod +x scripts/kafka-entrypoint.sh
+
+  topics:
+    desc: "Список Kafka топиков"
+    cmds:
+      - |
+        docker exec kafka1 /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka1:29092 --list
+
+  topic-create:
+    desc: "Создать топик  (vars: NAME, PARTITIONS=3, REPLICATION=3)"
+    vars:
+      PARTITIONS: '{{.PARTITIONS | default "3"}}'
+      REPLICATION: '{{.REPLICATION | default "3"}}'
+    requires:
+      vars: [NAME]
+    cmds:
+      - |
+        docker exec kafka1 /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka1:29092 \
+          --create --if-not-exists \
+          --topic {{.NAME}} \
+          --partitions {{.PARTITIONS}} \
+          --replication-factor {{.REPLICATION}}
+        echo "✓ Топик '{{.NAME}}' создан (partitions={{.PARTITIONS}}, replication={{.REPLICATION}})"
+
+  topic-describe:
+    desc: "Описание топика  (var: NAME)"
+    requires:
+      vars: [NAME]
+    cmds:
+      - |
+        docker exec kafka1 /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka1:29092 \
+          --describe --topic {{.NAME}}
+
+  brokers:
+    desc: "Показать список активных брокеров"
+    cmds:
+      - |
+        docker exec kafka1 /opt/kafka/bin/kafka-broker-api-versions.sh \
+          --bootstrap-server kafka1:29092 2>/dev/null | grep -oP 'kafka[0-9]+:\d+' | sort -u
