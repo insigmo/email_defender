@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -31,7 +32,7 @@ func New() *Config {
 
 	return &Config{
 		Kafka: &KafkaConfig{
-			Brokers: os.Getenv("KAFKA_BROKERS"),
+			Brokers: strings.Split(os.Getenv("KAFKA_BROKERS"), ","),
 			Topic:   os.Getenv("KAFKA_TOPIC"),
 			GroupID: os.Getenv("KAFKA_GROUP_ID"),
 		},
@@ -50,9 +51,9 @@ func New() *Config {
 }
 
 type KafkaConfig struct {
-	Brokers string `yaml:"KAFKA_BROKERS"`
-	Topic   string `yaml:"KAFKA_TOPIC"`
-	GroupID string `yaml:"KAFKA_GROUP_ID"`
+	Brokers []string `yaml:"KAFKA_BROKERS"`
+	Topic   string   `yaml:"KAFKA_TOPIC"`
+	GroupID string   `yaml:"KAFKA_GROUP_ID"`
 }
 
 type PostgresConfig struct {

@@ -44,7 +44,7 @@ func NewKafkaProducer(conf *config.KafkaConfig, logger *zap.Logger) (Producer, e
 }
 
 func (p *ProducerImp) Publish(message map[string]string) error {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 	defer cancelFunc()
@@ -59,14 +59,10 @@ func (p *ProducerImp) Publish(message map[string]string) error {
 
 	var promise kgo.FirstErrPromise
 	p.client.Produce(ctx, record, promise.Promise())
-	select {
-	case <-ctx.Done():
-		// Ждём завершения всех промисов перед выходом
-		if err := promise.Err(); err != nil {
-			p.logger.Error("async produce batch error", zap.Error(err))
-		}
-		return ctx.Err()
-	default:
+	// Ждём завершения всех промисов перед выходом
+	if err := promise.Err(); err != nil {
+		p.logger.Error("async produce batch error", zap.Error(err))
+		return fmt.Errorf("produce failed: %w", err)
 	}
 	return nil
 }
@@ -89,7 +85,7 @@ func (p *ProducerImp) packToKafkaRecord(eventID string, message map[string]strin
 
 func createProducerClient(conf *config.KafkaConfig) (*kgo.Client, error) {
 	client, err := kgo.NewClient(
-		kgo.SeedBrokers(conf.Brokers),
+		kgo.SeedBrokers(conf.Brokers...),
 		kgo.DefaultProduceTopic(conf.Topic),
 
 		// Идемпотентный продюсер (включён по умолчанию — явно для ясности)
@@ -103,6 +99,7 @@ func createProducerClient(conf *config.KafkaConfig) (*kgo.Client, error) {
 		kgo.MaxBufferedRecords(10_000),
 
 		// Таймаут доставки записи
+		kgo.ProduceRequestTimeout(10*time.Second),
 		kgo.RecordDeliveryTimeout(30*time.Second),
 
 		// Сжатие (snappy — хороший баланс скорости и размера)

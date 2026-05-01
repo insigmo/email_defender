@@ -11,16 +11,32 @@ services:
       - .env
     ports:
       - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
 
   postgres:
     image: postgres:18-alpine
+    container_name: postgres
     restart: always
     volumes:
-      - db_local:/usr/lib/postgresql/18/bin
+      - db_local:/var/lib/postgresql
     ports:
       - "5432:5432"
     env_file:
       - .env
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   kafka1:
     image: apache/kafka:4.2.0
@@ -28,6 +44,7 @@ services:
     container_name: kafka1
     ports:
       - "19092:9092"
+      - "19093:9093"
     volumes:
       - ./build/kafka/config/kafka-raft-1.properties:/var/lib/kafka/kraft.properties
       - ./build/kafka/entrypoint.sh:/entrypoint.sh
@@ -35,7 +52,7 @@ services:
     entrypoint:
       - /entrypoint.sh
     healthcheck:
-      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "kafka1:19092"]
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:19092"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -47,6 +64,7 @@ services:
     container_name: kafka2
     ports:
       - "29092:9092"
+      - "29093:9093"
     volumes:
       - ./build/kafka/config/kafka-raft-2.properties:/var/lib/kafka/kraft.properties
       - ./build/kafka/entrypoint.sh:/entrypoint.sh
@@ -54,7 +72,7 @@ services:
     entrypoint:
       - /entrypoint.sh
     healthcheck:
-      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "kafka2:29092"]
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:29092"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -66,6 +84,7 @@ services:
     container_name: kafka3
     ports:
       - "39092:9092"
+      - "39093:9093"
     volumes:
       - ./build/kafka/config/kafka-raft-3.properties:/var/lib/kafka/kraft.properties
       - ./build/kafka/entrypoint.sh:/entrypoint.sh
@@ -73,7 +92,7 @@ services:
     entrypoint:
       - /entrypoint.sh
     healthcheck:
-      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "kafka3:39092"]
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -86,7 +105,7 @@ services:
       - "8181:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: local-kraft-cluster
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:19092,kafka2:29092,kafka3:39092
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka1:9092,kafka2:9092,kafka3:9092"
       DYNAMIC_CONFIG_ENABLED: "true"
     depends_on:
       kafka1:

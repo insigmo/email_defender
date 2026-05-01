@@ -50,7 +50,7 @@ func (m *MessageHandlerImp) GetMessages(w http.ResponseWriter, r *http.Request) 
 }
 
 func (m *MessageHandlerImp) SendMessages(w http.ResponseWriter, r *http.Request) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()
 	defer r.Body.Close()
 
@@ -85,7 +85,7 @@ func (m *MessageHandlerImp) SendMessages(w http.ResponseWriter, r *http.Request)
 }
 
 func (m *MessageHandlerImp) UpdateMessages(w http.ResponseWriter, r *http.Request) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()
 	defer r.Body.Close()
 

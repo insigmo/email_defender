@@ -7,7 +7,6 @@ import (
 
 	"github.com/insigmo/email_defender/internal/config"
 	"github.com/insigmo/email_defender/internal/model"
-	"github.com/insigmo/email_defender/internal/services/db/db_massage"
 	"github.com/insigmo/email_defender/internal/services/http_client"
 	"go.uber.org/zap"
 )
@@ -18,17 +17,20 @@ type MessageHandlerService interface {
 }
 
 type Handler struct {
-	db         db_massage.MessageManager
 	conf       *config.KafkaConfig
 	httpClient http_client.HttpClient
 	logger     *zap.Logger
 }
 
-func New(db db_massage.MessageManager, conf *config.KafkaConfig, logger *zap.Logger) MessageHandlerService {
+func New(
+	httpClient http_client.HttpClient,
+	conf *config.KafkaConfig,
+	logger *zap.Logger,
+) MessageHandlerService {
 	return &Handler{
-		db:     db,
-		conf:   conf,
-		logger: logger,
+		httpClient: httpClient,
+		conf:       conf,
+		logger:     logger,
 	}
 }
 
