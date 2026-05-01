@@ -6,8 +6,7 @@ tasks:
   migrate:
     desc: Up migrations from ./migrations
     cmds:
-    - 'goose -dir migrations postgres "postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:5432/$POSTGRES_DB" up'
-    - "go run cmd/data_migrator/main.go"
+    - 'goose -dir migrations postgres "$POSTGRES_CONNECTION_URL" up'
 
   init:
     desc: "Сгенерировать CLUSTER_ID и сохранить в .env (пропускается, если .env уже есть)"

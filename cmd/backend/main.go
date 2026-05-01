@@ -2,30 +2,41 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"log"
 	"net/http"
-	"os"
+
+	"github.com/insigmo/email_defender/internal/services/db/db_massage"
+	"github.com/insigmo/email_defender/internal/services/kafka/kafka_producer"
+	"github.com/insigmo/email_defender/internal/services/message_service"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 
 	"github.com/insigmo/email_defender/internal/api/message_handler"
-	"github.com/insigmo/email_defender/internal/db/db_massage"
+	"github.com/insigmo/email_defender/internal/config"
 	"github.com/insigmo/email_defender/internal/logging"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
-	"go.uber.org/zap"
 )
 
 func main() {
-	pool := createDbPool()
-	defer pool.Close()
+	conf := config.New()
 	logger := setupLogger()
 
-	msgHandler := getMessageHandler(pool, logger)
+	pool := createDbPool(conf.Postgres)
+	defer pool.Close()
+	producer, err := kafka_producer.NewKafkaProducer(conf.Kafka, logger)
+	if err != nil {
+		panic(fmt.Errorf("failed to create kafka producer: %w", err))
+	}
+
+	dbMessageManager := db_massage.New(pool)
+	msgService := message_service.New(dbMessageManager, producer, logger)
+	msgHandler := message_handler.New(msgService, logger)
+
 	http.HandleFunc("/message", msgHandler.GetMessages)
 	http.HandleFunc("/send_message", msgHandler.SendMessages)
+	http.HandleFunc("/update_message", msgHandler.UpdateMessages)
+
 	logger.Info("Starting server on port 8080")
-	err := http.ListenAndServe(":8080", nil)
+	err = http.ListenAndServe(":8080", nil)
 	if err != nil {
 		panic(err)
 	}
@@ -39,28 +50,15 @@ func setupLogger() *zap.Logger {
 	return logger
 }
 
-func createDbPool() *pgxpool.Pool {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
-	user := os.Getenv("POSTGRES_USER")
-	password := os.Getenv("POSTGRES_PASSWORD")
-	dbName := os.Getenv("POSTGRES_DB")
-	if user == "" || password == "" || dbName == "" {
-		panic(errors.New("credentials not found"))
-	}
-	dbConn := fmt.Sprintf(`postgres://%s:%s@localhost:5432/%s`, user, password, dbName)
+func createDbPool(pgConfig *config.PostgresConfig) *pgxpool.Pool {
 	ctx := context.Background()
-	db, err := pgxpool.New(ctx, dbConn)
+	db, err := pgxpool.New(ctx, pgConfig.ConnURL)
 	if err != nil {
 		panic(err)
 	}
+	err = db.Ping(ctx)
+	if err != nil {
+		panic(fmt.Sprintf("conUrl: '%s', err %v", pgConfig.ConnURL, err))
+	}
 	return db
-}
-
-func getMessageHandler(db *pgxpool.Pool, logger *zap.Logger) message_handler.MessageHandler {
-	messageManager := db_massage.New(db)
-	return message_handler.New(messageManager, logger)
 }

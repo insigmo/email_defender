@@ -8,23 +8,25 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/insigmo/email_defender/internal/db/db_massage"
+	"github.com/insigmo/email_defender/internal/model"
+	"github.com/insigmo/email_defender/internal/services/message_service"
 	"go.uber.org/zap"
 )
 
 type MessageHandler interface {
 	GetMessages(w http.ResponseWriter, r *http.Request)
 	SendMessages(w http.ResponseWriter, r *http.Request)
+	UpdateMessages(w http.ResponseWriter, r *http.Request)
 }
 
 type MessageHandlerImp struct {
-	manager db_massage.MessageManager
+	service message_service.MessageService
 	logger  *zap.Logger
 }
 
-func New(manager db_massage.MessageManager, logger *zap.Logger) MessageHandler {
+func New(service message_service.MessageService, logger *zap.Logger) MessageHandler {
 	return &MessageHandlerImp{
-		manager: manager,
+		service: service,
 		logger:  logger,
 	}
 }
@@ -38,7 +40,7 @@ func (m *MessageHandlerImp) GetMessages(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	title := r.URL.Query().Get("title")
-	message, err := m.manager.GetMessage(ctx, title)
+	message, err := m.service.Get(ctx, title)
 	if err != nil {
 		m.logger.Warn("Failed to get message", zap.Error(err))
 		fmt.Fprintln(w, "Something went wrong")
@@ -64,7 +66,7 @@ func (m *MessageHandlerImp) SendMessages(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	var body MessageBody
+	var body model.Message
 
 	err = json.Unmarshal(rawBody, &body)
 	if err != nil {
@@ -72,7 +74,42 @@ func (m *MessageHandlerImp) SendMessages(w http.ResponseWriter, r *http.Request)
 		fmt.Fprintln(w, "Something went wrong")
 		return
 	}
-	err = m.manager.SendMessage(ctx, body.Title, body.Text)
+	err = m.service.Send(ctx, body.Title, body.Text)
+	if err != nil {
+		m.logger.Warn("Failed to save message", zap.Error(err))
+		fmt.Fprintln(w, "Something went wrong")
+		return
+	}
+
+	fmt.Fprintln(w, "Message successfully sent")
+}
+
+func (m *MessageHandlerImp) UpdateMessages(w http.ResponseWriter, r *http.Request) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancelFunc()
+	defer r.Body.Close()
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	rawBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		m.logger.Warn("Failed to read body", zap.Error(err))
+		fmt.Fprintln(w, "Something went wrong")
+		return
+	}
+
+	var body model.Message
+
+	err = json.Unmarshal(rawBody, &body)
+	if err != nil {
+		m.logger.Warn("Failed to unmarshal body", zap.Error(err))
+		fmt.Fprintln(w, "Something went wrong")
+		return
+	}
+	err = m.service.Update(ctx, body.Title, body.IsChecked, body.Hash)
 	if err != nil {
 		m.logger.Warn("Failed to save message", zap.Error(err))
 		fmt.Fprintln(w, "Something went wrong")
