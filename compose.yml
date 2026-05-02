@@ -21,6 +21,40 @@ services:
       kafka3:
         condition: service_healthy
 
+  message_handler:
+    container_name: message_handler
+    hostname: message_handler
+    build:
+      context: .
+      dockerfile: build/message_handler/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+
+  kafka-init:
+    image: apache/kafka:4.2.0
+    volumes:
+      - ./build/kafka/create_topic_entrypoint.sh:/entrypoint.sh
+    env_file:
+      - .env
+    depends_on:
+      kafka1:
+        condition: service_healthy
+      kafka2:
+        condition: service_healthy
+      kafka3:
+        condition: service_healthy
+    entrypoint: ["/entrypoint.sh"]
+    restart: "no"
+
   postgres:
     image: postgres:18-alpine
     container_name: postgres

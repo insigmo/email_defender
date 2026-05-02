@@ -34,7 +34,7 @@ func New(service message_service.MessageService, logger *zap.Logger) MessageHand
 func (m *MessageHandlerImp) GetMessages(w http.ResponseWriter, r *http.Request) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancelFunc()
-
+	m.logger.Info(r.RequestURI, zap.String("method", "GET"))
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -54,6 +54,7 @@ func (m *MessageHandlerImp) SendMessages(w http.ResponseWriter, r *http.Request)
 	defer cancelFunc()
 	defer r.Body.Close()
 
+	m.logger.Info(r.RequestURI, zap.String("method", "POST"))
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -88,8 +89,10 @@ func (m *MessageHandlerImp) UpdateMessages(w http.ResponseWriter, r *http.Reques
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second)
 	defer cancelFunc()
 	defer r.Body.Close()
+	m.logger.Info(r.RequestURI, zap.String("method", "POST"))
 
 	if r.Method != http.MethodPost {
+		m.logger.Warn("MethodNotAllowed", zap.String("method", "POST"))
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}

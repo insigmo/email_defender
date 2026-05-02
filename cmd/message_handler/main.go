@@ -20,7 +20,7 @@ func main() {
 	logger := setupLogger()
 	client := http_client.NewHttpClient(conf.Service.BaseUrl, logger)
 
-	msgHandler := message_handler_service.New(client, logger)
+	msgHandler := message_handler_service.New(client, conf.Kafka, logger)
 	consumer, err := kafka_consumer.NewKafkaConsumer(conf.Kafka, msgHandler, logger)
 	if err != nil {
 		panic(fmt.Errorf("failed to create kafka producer: %w", err))

@@ -1,16 +1,15 @@
-FROM golang:bookworm as builder
+FROM golang:bookworm AS builder
 
 
 WORKDIR /app
 
-COPY . .
-
-RUN go mod tidy
 RUN go install github.com/pressly/goose/v3/cmd/goose@latest
 
+COPY . .
+RUN go mod tidy
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o ./bin/message_handler ./cmd/message_handler
 
-FROM golang:bookworm-slim
+FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -18,4 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+COPY --from=builder /app/.env ./.env
 COPY --from=builder /app/bin/message_handler ./message_handler
+
+CMD ["/app/message_handler"]

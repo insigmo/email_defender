@@ -75,7 +75,7 @@ func (h *HttpClientImpl) UpdateMessage(ctx context.Context, message *model.Messa
 	b, _ := sonic.Marshal(message)
 
 	updateUrl := h.baseUrl + "/update_message"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, updateUrl, bytes.NewBuffer(b))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, updateUrl, bytes.NewBuffer(b))
 	if err != nil || req == nil {
 		h.logger.Error("failed to update http client", zap.Error(err))
 		return err

@@ -2,6 +2,7 @@ package message_service
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/insigmo/email_defender/internal/services/db/db_massage"
 	"github.com/insigmo/email_defender/internal/services/kafka/kafka_producer"
@@ -29,6 +30,7 @@ func New(db db_massage.MessageManager, producer kafka_producer.Producer, logger 
 }
 
 func (m *Messanger) Get(ctx context.Context, title string) (string, error) {
+	m.logger.Info(fmt.Sprintf("Getting message for %s", title))
 	text, err := m.db.GetMessage(ctx, title)
 	if err != nil {
 		return "", err
@@ -37,6 +39,7 @@ func (m *Messanger) Get(ctx context.Context, title string) (string, error) {
 }
 
 func (m *Messanger) Send(ctx context.Context, title, text string) error {
+	m.logger.Info(fmt.Sprintf("Sending message to %s", title))
 	err := m.db.SendMessage(ctx, title, text)
 	if err != nil {
 		m.logger.Error("Failed to send message", zap.Error(err))
@@ -54,6 +57,7 @@ func (m *Messanger) Send(ctx context.Context, title, text string) error {
 }
 
 func (m *Messanger) Update(ctx context.Context, title string, isChecked bool, hash string) error {
+	m.logger.Info("Updating message", zap.String("title", title), zap.String("hash", hash))
 	err := m.db.UpdateMessage(ctx, title, isChecked, hash)
 	if err != nil {
 		m.logger.Error("Failed to update message", zap.Error(err))

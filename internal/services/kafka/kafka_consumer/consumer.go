@@ -11,6 +11,7 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/insigmo/email_defender/internal/config"
+	"github.com/insigmo/email_defender/internal/model"
 	"github.com/insigmo/email_defender/internal/services/message_handler_service"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.uber.org/zap"
@@ -41,17 +42,13 @@ func NewKafkaConsumer(conf *config.KafkaConfig, msgHandler message_handler_servi
 }
 
 func (c *ConsumerImp) StartConsume() {
-	client, err := createConsumerClient(c.conf)
-	if err != nil {
-		panic(err)
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 	defer stop()
 
 	defer func() {
-		client.Close()
+		c.client.Close()
 		c.logger.Info("consumer closed")
 	}()
 
@@ -168,32 +165,31 @@ func (c *ConsumerImp) ProcessRecord(ctx context.Context, r *kgo.Record) error {
 	)
 	body, err := c.decode(r)
 	if err != nil {
+		c.logger.Error("failed to decode record", zap.Error(err))
 		return err
 	}
 
-	title, ok := body["title"]
-	if !ok {
-		return errors.New("missing title")
-	}
-	err = c.msgHandler.Update(ctx, title)
+	err = c.msgHandler.Update(ctx, body)
 	if err != nil {
+		c.logger.Error("failed to process record", zap.Error(err))
 		return err
 	}
 	return nil
 }
 
-func (c *ConsumerImp) decode(r *kgo.Record) (map[string]string, error) {
-	var body map[string]string
+func (c *ConsumerImp) decode(r *kgo.Record) (*model.Message, error) {
+	var body model.Message
 	err := sonic.Unmarshal(r.Value, &body)
 	if err != nil {
-		return body, err
+		c.logger.Error("failed to decode message", zap.Error(err))
+		return nil, err
 	}
-	return body, nil
+	return &body, nil
 }
 
 func createConsumerClient(conf *config.KafkaConfig) (*kgo.Client, error) {
 	client, err := kgo.NewClient(
-		kgo.SeedBrokers(conf.Brokers),
+		kgo.SeedBrokers(conf.Brokers...),
 		kgo.ConsumerGroup(conf.GroupID),
 		kgo.ConsumeTopics(conf.Topic),
 
